@@ -1,7 +1,7 @@
 package com.example.demo;
 
-import com.example.demo.role.Role;
-import com.example.demo.role.RoleRepository;
+import com.example.demo.domain.userManagementDomain.role.entity.Role;
+import com.example.demo.domain.userManagementDomain.role.respository.RoleRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

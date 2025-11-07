@@ -1,8 +1,7 @@
 package com.example.demo.validation;
 
-import com.example.demo.auth.RegistrationRequest;
-import com.example.demo.auth.ResetPasswordRequest;
-import com.example.demo.user.UserRespository;
+import com.example.demo.domain.userManagementDomain.auth.request.RegistrationRequest;
+import com.example.demo.domain.userManagementDomain.user.repository.UserRepository;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import lombok.Builder;
@@ -13,7 +12,7 @@ import lombok.Setter;
 @Setter
 @Builder
 public class UniqueEmailValidator implements ConstraintValidator<UniqueEmail, RegistrationRequest> {
-    private final UserRespository userRespository;
+    private final UserRepository userRepository;
 
     @Override
     public void initialize(UniqueEmail constraintAnnotation) {
@@ -21,6 +20,6 @@ public class UniqueEmailValidator implements ConstraintValidator<UniqueEmail, Re
 
     @Override
     public boolean isValid(RegistrationRequest registrationRequest, ConstraintValidatorContext constraintValidatorContext) {
-        return userRespository.findByEmail(registrationRequest.getEmail()).isEmpty();
+        return userRepository.findByEmail(registrationRequest.getEmail()).isEmpty();
     }
 }

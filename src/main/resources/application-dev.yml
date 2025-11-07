@@ -1,18 +1,19 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/hlinetrunkdb
-    username: adminUser
+    url: jdbc:postgresql://localhost:5432/hlinedb
+    username: admin
     password: admin@*123
     driver-class-name: org.postgresql.Driver
   jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-    database: postgresql
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
   mail:
     host: localhost
     port: 1025

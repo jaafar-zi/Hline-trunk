@@ -1,6 +1,6 @@
 package com.example.demo.validation;
 
-import com.example.demo.auth.ResetPasswordRequest;
+import com.example.demo.domain.userManagementDomain.auth.request.ResetPasswordRequest;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
