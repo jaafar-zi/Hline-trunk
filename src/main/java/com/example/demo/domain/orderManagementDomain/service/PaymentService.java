@@ -1,64 +1,91 @@
 package com.example.demo.domain.orderManagementDomain.service;
 
+import com.example.demo.common.base.service.AbstractBaseService;
+import com.example.demo.common.exception.EntityNotFoundException;
 import com.example.demo.domain.orderManagementDomain.dto.PaymentDto;
 import com.example.demo.domain.orderManagementDomain.entity.Payment;
 import com.example.demo.domain.orderManagementDomain.repository.PaymentRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @Transactional
-public class PaymentService {
+public class PaymentService extends AbstractBaseService<Payment, Long> {
 
     private final PaymentRepository paymentRepository;
 
     public PaymentService(PaymentRepository paymentRepository) {
+        super(paymentRepository);
         this.paymentRepository = paymentRepository;
     }
 
+    @Override
+    protected String getCacheName() {
+        return "payments";
+    }
+
+    @Override
+    protected Class<?> getEntityClass() {
+        return Payment.class;
+    }
+
+    // ───────────────────────────────────────────────
+    //  CRUD METHODS USING BASE SERVICE
+    // ───────────────────────────────────────────────
+
+    @Transactional
     public PaymentDto createPayment(PaymentDto dto) {
         Payment payment = toEntity(dto);
         payment.setCreatedAt(LocalDateTime.now());
         payment.setUpdatedAt(LocalDateTime.now());
-        return toDto(paymentRepository.save(payment));
+        return toDto(save(payment));
     }
 
+    @Transactional
     public PaymentDto updatePaymentStatus(Long paymentId, String status) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+        Payment payment = findByIdOrThrow(paymentId);
         payment.setStatus(status);
         payment.setUpdatedAt(LocalDateTime.now());
-        return toDto(paymentRepository.save(payment));
+        return toDto(save(payment));
     }
 
     @Transactional(readOnly = true)
-    public Optional<PaymentDto> getPaymentById(Long paymentId) {
-        return paymentRepository.findById(paymentId).map(this::toDto);
+    @Cacheable(cacheNames = "payments", key = "'id:' + #paymentId")
+    public PaymentDto getPaymentById(Long paymentId) {
+        return findById(paymentId)
+                .map(this::toDto)
+                .orElseThrow(() -> new EntityNotFoundException(Payment.class, paymentId));
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "payments", key = "'all'")
     public List<PaymentDto> getAllPayments() {
-        return paymentRepository.findAll()
-                .stream()
+        return findAll().stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "payments", key = "'order:' + #orderId")
     public List<PaymentDto> getPaymentsByOrderId(Long orderId) {
-        return paymentRepository.findAll()
-                .stream()
+        return paymentRepository.findAll().stream()
                 .filter(payment -> payment.getOrderId().equals(orderId))
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
-    public PaymentDto toDto(Payment payment) {
+    // ───────────────────────────────────────────────
+    //  DTO ↔ ENTITY MAPPING
+    // ───────────────────────────────────────────────
+
+    private PaymentDto toDto(Payment payment) {
         PaymentDto dto = new PaymentDto();
         dto.setId(payment.getId());
         dto.setOrderId(payment.getOrderId());
@@ -71,7 +98,7 @@ public class PaymentService {
         return dto;
     }
 
-    public Payment toEntity(PaymentDto dto) {
+    private Payment toEntity(PaymentDto dto) {
         Payment payment = new Payment();
         payment.setId(dto.getId());
         payment.setOrderId(dto.getOrderId());
@@ -83,5 +110,20 @@ public class PaymentService {
         payment.setUpdatedAt(dto.getUpdatedAt());
         return payment;
     }
+
+    // ───────────────────────────────────────────────
+    //  HOOKS
+    // ───────────────────────────────────────────────
+
+    @Override
+    protected void onAfterSave(Payment entity) {
+        log.debug("Payment {} saved for order {}", entity.getId(), entity.getOrderId());
+    }
+
+    @Override
+    protected void onAfterDelete(Long id) {
+        log.debug("Payment {} deleted", id);
+    }
 }
+
 

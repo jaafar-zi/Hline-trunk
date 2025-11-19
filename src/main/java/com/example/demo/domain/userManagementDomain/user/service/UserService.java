@@ -5,7 +5,6 @@ import com.example.demo.domain.userManagementDomain.user.dto.UserDTO;
 import com.example.demo.domain.userManagementDomain.user.entity.User;
 import com.example.demo.domain.userManagementDomain.user.entity.UserGroup;
 import com.example.demo.domain.userManagementDomain.user.exception.*;
-import com.example.demo.userManagementDomain.user.exception.*;
 import com.example.demo.domain.userManagementDomain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

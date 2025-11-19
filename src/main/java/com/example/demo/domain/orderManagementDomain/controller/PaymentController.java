@@ -33,9 +33,8 @@ public class PaymentController {
 
     @GetMapping("/{id}")
     public ResponseEntity<PaymentDto> getPaymentById(@PathVariable Long id) {
-        return paymentService.getPaymentById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        PaymentDto dto = paymentService.getPaymentById(id);
+        return ResponseEntity.ok(dto);
     }
 
     @GetMapping

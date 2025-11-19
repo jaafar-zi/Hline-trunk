@@ -1,11 +1,13 @@
 package com.example.demo.domain.productManagementDomain.service;
 
+import com.example.demo.common.base.service.AbstractBaseService;
 import com.example.demo.domain.productManagementDomain.dto.AssetDTO;
 import com.example.demo.domain.productManagementDomain.entity.Asset;
 import com.example.demo.domain.productManagementDomain.entity.Product;
+import com.example.demo.domain.productManagementDomain.mapper.AssetMapper;
 import com.example.demo.domain.productManagementDomain.repository.AssetRepository;
 import com.example.demo.domain.productManagementDomain.repository.ProductRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -17,21 +19,36 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
-public class AssetService {
+public class AssetService extends AbstractBaseService<Asset, Long> {
 
-    private final AssetRepository assetRepository;
     private final ProductRepository productRepository;
+    private final AssetMapper assetMapper;
+
+    public AssetService(AssetRepository repository, ProductRepository productRepository, AssetMapper assetMapper) {
+        super(repository);
+        this.productRepository = productRepository;
+        this.assetMapper = assetMapper;
+    }
+
+    @Override
+    protected String getCacheName() {
+        return "assets";
+    }
+
+    @Override
+    protected Class<?> getEntityClass() {
+        return Asset.class;
+    }
+
+    // -------------------------
+    // Domain-specific methods
+    // -------------------------
 
     /**
      * Upload a single file and associate it with a product.
-     *
-     * @param file      The file to upload.
-     * @param productId The associated product ID.
-     * @return Saved AssetDTO.
-     * @throws IOException if file read fails.
      */
     @Transactional
+    @CacheEvict(cacheNames = "assets", allEntries = true)
     public AssetDTO uploadAsset(MultipartFile file, Long productId) throws IOException {
         validateFile(file);
 
@@ -46,19 +63,16 @@ public class AssetService {
                 .product(product)
                 .build();
 
-        Asset savedAsset = assetRepository.save(asset);
-        return convertToDTO(savedAsset);
+        Asset savedAsset = save(asset);
+        onAfterSave(savedAsset);
+        return assetMapper.toDto(savedAsset);
     }
 
     /**
      * Upload multiple files and associate each with the same product.
-     *
-     * @param files     The files to upload.
-     * @param productId The associated product ID.
-     * @return List of saved AssetDTOs.
-     * @throws IOException if any file read fails.
      */
     @Transactional
+    @CacheEvict(cacheNames = "assets", allEntries = true)
     public List<AssetDTO> uploadMultipleAssets(MultipartFile[] files, Long productId) throws IOException {
         if (files == null || files.length == 0) {
             throw new IllegalArgumentException("File list cannot be empty");
@@ -75,8 +89,8 @@ public class AssetService {
      * Get all assets as DTOs.
      */
     public List<AssetDTO> getAllAssets() {
-        return assetRepository.findAll().stream()
-                .map(this::convertToDTO)
+        return findAll().stream()
+                .map(asset -> assetMapper.toDto(asset))
                 .collect(Collectors.toList());
     }
 
@@ -84,33 +98,27 @@ public class AssetService {
      * Get all assets by product ID.
      */
     public List<AssetDTO> findAllAssetsByProductId(Long productId) {
-        return assetRepository.findAssetsByProductId(productId);
+        return ((AssetRepository) repository).findAssetsByProductId(productId);
     }
 
     /**
      * Get an asset by ID as DTO.
      */
     public Optional<AssetDTO> getAssetById(Long id) {
-        return assetRepository.findById(id).map(this::convertToDTO);
+        return findById(id).map(asset -> assetMapper.toDto(asset));
     }
 
     /**
      * Get the latest uploaded assets with pagination.
      */
     public Page<AssetDTO> getLatestAssets(int limit) {
-        return assetRepository.findLatestAssets(PageRequest.of(0, limit));
+        return ((AssetRepository) repository).findLatestAssets(PageRequest.of(0, limit));
     }
 
-    /**
-     * Delete an asset by ID.
-     */
-    public void deleteAsset(Long id) {
-        assetRepository.deleteById(id);
-    }
+    // -------------------------
+    // Validation & Helpers
+    // -------------------------
 
-    /**
-     * Validate the uploaded file.
-     */
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File cannot be empty");
@@ -120,16 +128,9 @@ public class AssetService {
         }
     }
 
-    /**
-     * Convert Asset entity to DTO.
-     */
-    private AssetDTO convertToDTO(Asset asset) {
-        return new AssetDTO(
-                asset.getId(),
-                asset.getName(),
-                asset.getContentType(),
-                asset.getSize(),
-                asset.getProduct().getId()
-        );
+    // Optional: future audit hook
+    @Override
+    protected void onAfterSave(Asset entity) {
+        // e.g. trigger indexing or audit log
     }
 }

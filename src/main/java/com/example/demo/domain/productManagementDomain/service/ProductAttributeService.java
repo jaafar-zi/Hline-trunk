@@ -1,10 +1,15 @@
 package com.example.demo.domain.productManagementDomain.service;
 
+import com.example.demo.common.base.service.AbstractBaseService;
+import com.example.demo.common.exception.EntityNotFoundException;
 import com.example.demo.domain.productManagementDomain.dto.ProductAttributeDTO;
 import com.example.demo.domain.productManagementDomain.entity.ProductAttribute;
+import com.example.demo.domain.productManagementDomain.mapper.ProductAttributeMapper;
 import com.example.demo.domain.productManagementDomain.repository.ProductAttributeRepository;
 import com.example.demo.domain.productManagementDomain.repository.ProductRepository;
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,76 +18,103 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
-@AllArgsConstructor(onConstructor = @__(@Autowired))
-public class ProductAttributeService {
+@Transactional(readOnly = true)
+public class ProductAttributeService extends AbstractBaseService<ProductAttribute, Long> {
 
     private final ProductAttributeRepository productAttributeRepository;
     private final ProductRepository productRepository;
+    private final ProductAttributeMapper productAttributeMapper;
+
+    public ProductAttributeService(ProductAttributeRepository productAttributeRepository, ProductRepository productRepository, ProductAttributeMapper productAttributeMapper) {
+        super(productAttributeRepository);
+        this.productAttributeRepository = productAttributeRepository;
+        this.productRepository = productRepository;
+        this.productAttributeMapper = productAttributeMapper;
+    }
+
+    // ───────────────────────────────────────────────
+    //  BASE CONFIG
+    // ───────────────────────────────────────────────
+
+    @Override
+    protected String getCacheName() {
+        return "productAttributes";
+    }
+
+    @Override
+    protected Class<?> getEntityClass() {
+        return ProductAttribute.class;
+    }
 
     // ───────────────────────────────────────────────
     //  CREATE
     // ───────────────────────────────────────────────
 
-    public ProductAttributeDTO createProductAttribute(ProductAttributeDTO dto) {
-        ProductAttribute saved = productAttributeRepository.save(toEntity(dto));
-        return toDto(saved);
+    @Transactional
+    public ProductAttributeDTO create(ProductAttributeDTO dto) {
+        ProductAttribute entity = toEntity(dto);
+        ProductAttribute saved = super.save(entity); // uses AbstractBaseService.save()
+        log.info("Created ProductAttribute [id={}]", saved.getId());
+        return productAttributeMapper.toDto(saved);
     }
 
     // ───────────────────────────────────────────────
     //  READ
     // ───────────────────────────────────────────────
 
-    public Page<ProductAttributeDTO> getAllProductAttributes(Pageable pageable) {
-        return productAttributeRepository.findAll(pageable).map(this::toDto);
+    public Page<ProductAttributeDTO> findAll(Pageable pageable) {
+        return productAttributeRepository.findAll(pageable)
+                .map(productAttributeMapper::toDto);
     }
 
-    public List<ProductAttributeDTO> getAllProductAttributes(Long productId, String lang) {
+    public List<ProductAttributeDTO> findAllByProductAndLang(Long productId, String lang) {
         return productAttributeRepository.findProductAttributesByProductIdAndLang(productId, lang);
     }
 
-    public ProductAttributeDTO getById(Long id) {
-        ProductAttribute attribute = productAttributeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("ProductAttribute not found with id: " + id));
-        return toDto(attribute);
+    public ProductAttributeDTO findDtoById(Long id) {
+        ProductAttribute entity = super.findByIdOrThrow(id);
+        return productAttributeMapper.toDto(entity);
     }
 
-    public List<ProductAttributeDTO> getAttributesByProductId(Long productId) {
-        List<ProductAttributeDTO> collect = productAttributeRepository.findByProductId(productId)
+    public List<ProductAttributeDTO> findByProductId(Long productId) {
+        return productAttributeRepository.findByProductId(productId)
                 .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
-        return collect;
+                .map(productAttributeMapper::toDto)
+                .toList();
     }
 
-    public Page<ProductAttributeDTO> getAttributesNotAssignedToProduct(Long productId, Pageable pageable) {
-        return productAttributeRepository.findAttributesNotAssignedToProduct(productId, pageable).map(this::toDto);
+    public Page<ProductAttributeDTO> findUnassignedToProduct(Long productId, Pageable pageable) {
+        return productAttributeRepository.findAttributesNotAssignedToProduct(productId, pageable)
+                .map(productAttributeMapper::toDto);
     }
 
-    public List<ProductAttributeDTO> getAttributesByAttributeName(String attributeName) {
+    public List<ProductAttributeDTO> findByName(String attributeName) {
         return productAttributeRepository.findByAttributeName(attributeName)
                 .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+                .map(productAttributeMapper::toDto)
+                .toList();
     }
 
-    public List<ProductAttributeDTO> getAttributesByAttributeNameAndValue(String attributeName, String attributeValue) {
-        return productAttributeRepository.findByAttributeNameAndAttributeValue(attributeName, attributeValue)
+    public List<ProductAttributeDTO> findByNameAndValue(String name, String value) {
+        return productAttributeRepository.findByAttributeNameAndAttributeValue(name, value)
                 .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+                .map(productAttributeMapper::toDto)
+                .toList();
     }
 
-    public List<ProductAttributeDTO> getAttributesByProductIdAndAttributeName(Long productId, String attributeName) {
+    public List<ProductAttributeDTO> findByProductIdAndName(Long productId, String attributeName) {
         return productAttributeRepository.findByProductIdAndAttributeName(productId, attributeName)
                 .stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+                .map(productAttributeMapper::toDto)
+                .toList();
     }
 
-    public Map<Long, List<ProductAttributeDTO>> getPricingByProductIdsAsMap(List<Long> productIds, String lang) {
+    public Map<Long, List<ProductAttributeDTO>> findGroupedByProductIds(List<Long> productIds, String lang) {
         return productAttributeRepository.getAttributesByProductIds(productIds, lang)
                 .stream()
                 .collect(Collectors.groupingBy(ProductAttributeDTO::getProductId));
@@ -93,31 +125,33 @@ public class ProductAttributeService {
     // ───────────────────────────────────────────────
 
     @Transactional
-    public ProductAttributeDTO updateProductAttribute(Long id, ProductAttributeDTO dto) {
-        productAttributeRepository.updateProductAttribute(
-                id,
-                dto.getAttributeName(),
-                dto.getAttributeValue()
-        );
-        return getById(id); // fetch and return updated entity
+    public ProductAttributeDTO update(Long id, ProductAttributeDTO dto) {
+        ProductAttribute existing = super.findByIdOrThrow(id);
+
+        existing.setAttributeName(dto.getAttributeName());
+        existing.setAttributeValue(dto.getAttributeValue());
+        existing.setLang(dto.getLang());
+
+        ProductAttribute updated = super.update(id, existing);
+        log.info("Updated ProductAttribute [id={}]", id);
+        return productAttributeMapper.toDto(updated);
     }
 
     // ───────────────────────────────────────────────
     //  DELETE
     // ───────────────────────────────────────────────
 
-    public void deleteProductAttribute(Long id) {
-        if (!productAttributeRepository.existsById(id)) {
-            throw new RuntimeException("ProductAttribute not found with id: " + id);
-        }
-        productAttributeRepository.deleteById(id);
+    @Transactional
+    public void delete(Long id) {
+        super.delete(id);
+        log.info("Deleted ProductAttribute [id={}]", id);
     }
 
     // ───────────────────────────────────────────────
-    //  MAPPING
+    //  INTERNAL MAPPING
     // ───────────────────────────────────────────────
 
-    public ProductAttribute toEntity(ProductAttributeDTO dto) {
+    private ProductAttribute toEntity(ProductAttributeDTO dto) {
         ProductAttribute entity = new ProductAttribute();
         entity.setId(dto.getId());
         entity.setAttributeName(dto.getAttributeName());
@@ -125,22 +159,27 @@ public class ProductAttributeService {
         entity.setLang(dto.getLang());
 
         if (dto.getProductId() != null) {
-            productRepository.findById(dto.getProductId()).ifPresent(entity::setProduct);
+            productRepository.findById(dto.getProductId())
+                    .ifPresentOrElse(
+                            entity::setProduct,
+                            () -> { throw new EntityNotFoundException(getEntityClass(), dto.getProductId()); }
+                    );
         }
 
         return entity;
     }
 
-    public ProductAttributeDTO toDto(ProductAttribute entity) {
-        Long productId = entity.getProducts().isEmpty() ? null : entity.getProducts().get(0).getId();
+    // ───────────────────────────────────────────────
+    //  POST-SAVE / DELETE HOOKS
+    // ───────────────────────────────────────────────
 
-        ProductAttributeDTO dto = new ProductAttributeDTO();
-        dto.setId(entity.getId());
-        dto.setProductId(productId);
-        dto.setAttributeName(entity.getAttributeName());
-        dto.setAttributeValue(entity.getAttributeValue());
-        dto.setLang(entity.getLang());
+    @Override
+    protected void onAfterSave(ProductAttribute entity) {
+        log.debug("Post-save hook triggered for ProductAttribute [id={}]", entity.getId());
+    }
 
-        return dto;
+    @Override
+    protected void onAfterDelete(Long id) {
+        log.debug("Post-delete hook triggered for ProductAttribute [id={}]", id);
     }
 }

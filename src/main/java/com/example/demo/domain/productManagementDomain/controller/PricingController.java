@@ -28,8 +28,8 @@ public class PricingController {
      * Create a new pricing entry.
      */
     @PostMapping
-    public ResponseEntity<Pricing> createPricing(@RequestBody Pricing pricing) {
-        Pricing createdPricing = pricingService.createPricing(pricing);
+    public ResponseEntity<ProductPricingDTO> createPricing(@RequestBody Pricing pricing) {
+        ProductPricingDTO createdPricing = pricingService.createPricing(pricing);
         return ResponseEntity.ok(createdPricing);
     }
 
@@ -93,7 +93,7 @@ public class PricingController {
     public ResponseEntity<ProductPricingDTO> getPricingsByProductIdAndCurrency(
             @PathVariable Long productId,
             @PathVariable String currency) {
-        return ResponseEntity.ok(pricingService.getPricingsByProductIdAndCurrency(productId, currency).get());
+        return ResponseEntity.ok(pricingService.getPricingByProductIdAndCurrency(productId, currency).get());
     }
 
     // ─────────────────────────────
@@ -104,8 +104,8 @@ public class PricingController {
      * Update a pricing entry by ID.
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Pricing> updatePricing(@PathVariable Long id, @RequestBody Pricing updatedPricing) {
-        Pricing pricing = pricingService.updatePricing(id, updatedPricing);
+    public ResponseEntity<ProductPricingDTO> updatePricing(@PathVariable Long id, @RequestBody Pricing updatedPricing) {
+        ProductPricingDTO pricing = pricingService.updatePricing(id, updatedPricing);
         return ResponseEntity.ok(pricing);
     }
 
@@ -118,7 +118,7 @@ public class PricingController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePricing(@PathVariable Long id) {
-        pricingService.deletePricing(id);
+        pricingService.delete(id);
         return ResponseEntity.noContent().build();
     }
 }

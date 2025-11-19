@@ -1,4 +1,4 @@
-package com.example.demo.global.handler;
+package com.example.demo.common.handler;
 
 import com.example.demo.global.exceptions.CustomBadRequestException;
 import com.example.demo.global.exceptions.CustomInternalServerErrorException;

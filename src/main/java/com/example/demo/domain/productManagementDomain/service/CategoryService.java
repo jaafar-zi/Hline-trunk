@@ -1,9 +1,10 @@
 package com.example.demo.domain.productManagementDomain.service;
 
+import com.example.demo.common.base.service.AbstractBaseService;
 import com.example.demo.domain.productManagementDomain.dto.CategoryDTO;
 import com.example.demo.domain.productManagementDomain.entity.Category;
+import com.example.demo.domain.productManagementDomain.mapper.CategoryMapper;
 import com.example.demo.domain.productManagementDomain.repository.CategoryRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,34 +13,64 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
-public class CategoryService {
+public class CategoryService extends AbstractBaseService<Category, Long> {
 
     private final CategoryRepository categoryRepository;
+    private final CategoryMapper categoryMapper;
 
-    // Convert Entity to DTO (used for simple fetches like findById, etc.)
-    public CategoryDTO mapToDTO(Category category) {
-        return CategoryDTO.builder()
-                .id(category.getId())
-                .name(category.getName())
-                .description(category.getDescription())
-                .parentCategoryId(category.getParentCategory() != null ? category.getParentCategory().getId() : null)
-                .subcategories(category.getSubcategories().stream()
-                        .map(this::mapToDTO)
-                        .collect(Collectors.toList()))
-                .build();
+    public CategoryService(CategoryRepository repository,CategoryMapper categoryMapper) {
+        super(repository);
+        this.categoryRepository = repository;
+        this.categoryMapper = categoryMapper;
     }
 
-    public Category mapToEntity(CategoryDTO dto) {
-        Category category = new Category();
-        category.setId(dto.getId());
-        category.setName(dto.getName());
-        category.setDescription(dto.getDescription());
-        return category;
+    @Override
+    protected String getCacheName() {
+        return "categories";
+    }
+
+    @Override
+    protected Class<?> getEntityClass() {
+        return Category.class;
+    }
+
+    // -----------------------
+    // DOMAIN LOGIC
+    // -----------------------
+
+    @Transactional
+    public CategoryDTO createCategory(CategoryDTO dto) {
+        Category category = categoryMapper.toEntity(dto);
+        if (dto.getParentCategoryId() != null) {
+            category.setParentCategory(categoryRepository.findById(dto.getParentCategoryId()).orElse(null));
+        }
+        Category saved = save(category);
+        return categoryMapper.toDto(saved);
+    }
+
+    public CategoryDTO getCategoryById(Long id) {
+        return categoryMapper.toDto(findByIdOrThrow(id));
+    }
+
+    public CategoryDTO getCategoryByName(String name) {
+        return categoryRepository.findByName(name)
+                .map(category -> categoryMapper.toDto(category))
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+    }
+
+    public List<CategoryDTO> getRootCategories() {
+        return categoryRepository.findByParentCategoryIsNull()
+                .stream().map(category -> categoryMapper.toDto(category))
+                .collect(Collectors.toList());
+    }
+
+    public List<CategoryDTO> getSubcategories(Long parentId) {
+        return categoryRepository.findByParentCategoryId(parentId)
+                .stream().map(category -> categoryMapper.toDto(category))
+                .collect(Collectors.toList());
     }
 
     public List<CategoryDTO> getAllCategories() {
-        // Only fetch root categories and recursively build subcategory tree
         return getCategoryDTOs(false, null, true);
     }
 
@@ -66,74 +97,32 @@ public class CategoryService {
             if (parentId != null) {
                 CategoryDTO parent = idToCategoryMap.get(parentId);
                 if (parent != null) {
-                    if (parent.getSubcategories() == null) {
-                        parent.setSubcategories(new ArrayList<>());
-                    }
                     parent.getSubcategories().add(dto);
                 }
             } else {
                 roots.add(dto);
             }
         }
-
         return roots;
     }
 
     @Transactional
-    public CategoryDTO createCategory(CategoryDTO dto) {
-        Category category = mapToEntity(dto);
-        if (dto.getParentCategoryId() != null) {
-            category.setParentCategory(categoryRepository.findById(dto.getParentCategoryId()).orElse(null));
-        }
-        Category savedCategory = categoryRepository.save(category);
-        return mapToDTO(savedCategory);
-    }
-
-    public CategoryDTO getCategoryById(Long id) {
-        return categoryRepository.findById(id)
-                .map(this::mapToDTO)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-    }
-
-    public CategoryDTO getCategoryByName(String name) {
-        return categoryRepository.findByName(name)
-                .map(this::mapToDTO)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-    }
-
-    public List<CategoryDTO> getRootCategories() {
-        return categoryRepository.findByParentCategoryIsNull()
-                .stream().map(this::mapToDTO)
-                .collect(Collectors.toList());
-    }
-
-    public List<CategoryDTO> getSubcategories(Long parentId) {
-        return categoryRepository.findByParentCategoryId(parentId)
-                .stream().map(this::mapToDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Transactional
     public CategoryDTO updateCategory(Long id, CategoryDTO dto) {
-        Category existingCategory = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-
-        existingCategory.setName(dto.getName());
-        existingCategory.setDescription(dto.getDescription());
+        Category existing = findByIdOrThrow(id);
+        existing.setName(dto.getName());
+        existing.setDescription(dto.getDescription());
 
         if (dto.getParentCategoryId() != null) {
-            existingCategory.setParentCategory(categoryRepository.findById(dto.getParentCategoryId()).orElse(null));
+            existing.setParentCategory(categoryRepository.findById(dto.getParentCategoryId()).orElse(null));
         }
 
-        Category updatedCategory = categoryRepository.save(existingCategory);
-        return mapToDTO(updatedCategory);
+        Category updated = update(id, existing);
+        return categoryMapper.toDto(updated);
     }
 
     @Transactional
     public void deleteCategory(Long id) {
-        if (!categoryRepository.existsById(id)) {
-            throw new RuntimeException("Category not found");
-        }
-        categoryRepository.deleteById(id);
+        delete(id);
     }
 }
+

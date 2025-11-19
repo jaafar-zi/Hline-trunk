@@ -4,6 +4,7 @@ import com.example.demo.domain.productManagementDomain.dto.AssetDTO;
 import com.example.demo.domain.productManagementDomain.dto.InventoryDTO;
 import com.example.demo.domain.productManagementDomain.dto.ProductTableDTO;
 import com.example.demo.domain.productManagementDomain.entity.Product;
+import com.example.demo.domain.productManagementDomain.mapper.CategoryMapper;
 import com.example.demo.domain.productManagementDomain.repository.AssetRepository;
 import com.example.demo.domain.productManagementDomain.repository.InventoryRepository;
 import com.example.demo.domain.productManagementDomain.repository.ProductRepository;
@@ -28,7 +29,7 @@ public class ProductDataTableService {
     @Autowired
     private AssetRepository assetRepository;
     @Autowired
-    private CategoryService categoryService;
+    private CategoryMapper categoryMapper;
 
     public Page<ProductTableDTO> getPagedProductTable(Pageable pageable) {
         Page<Product> products = productRepository.findAll(pageable);
@@ -44,7 +45,7 @@ public class ProductDataTableService {
                     .stockQuantity(inventory.getQuantityInStock())
                     .reorderQuantity(inventory.getReorderQuantity())
                     .reservedQuantity(inventory.getReservedQuantity())
-                    .productCategory(categoryService.mapToDTO(product.getCategory()))
+                    .productCategory(categoryMapper.toDto(product.getCategory()))
                     .build();
         });
     }
@@ -57,7 +58,6 @@ public class ProductDataTableService {
                 .findFirst()
                 .orElse(Long.MIN_VALUE);
     }
-
 
 }
 

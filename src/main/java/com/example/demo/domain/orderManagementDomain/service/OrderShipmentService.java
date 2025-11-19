@@ -1,181 +1,180 @@
 package com.example.demo.domain.orderManagementDomain.service;
 
+import com.example.demo.common.base.service.AbstractBaseService;
 import com.example.demo.global.exceptions.CustomBadRequestException;
-import com.example.demo.global.exceptions.CustomInternalServerErrorException;
 import com.example.demo.global.exceptions.ResourceNotFoundException;
 import com.example.demo.domain.orderManagementDomain.dto.OrderShipmentDto;
 import com.example.demo.domain.orderManagementDomain.entity.OrderShipment;
 import com.example.demo.domain.orderManagementDomain.entity.ShipmentStatus;
 import com.example.demo.domain.orderManagementDomain.repository.OrderShipmentRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
+@Slf4j
 @Service
-public class OrderShipmentService {
+public class OrderShipmentService extends AbstractBaseService<OrderShipment, Long> {
 
-    @Autowired
-    private OrderShipmentRepository shipmentRepository;
+    private final OrderShipmentRepository shipmentRepository;
 
+    public OrderShipmentService(OrderShipmentRepository shipmentRepository) {
+        super(shipmentRepository);
+        this.shipmentRepository = shipmentRepository;
+    }
 
-    // Create a new shipment
-    public OrderShipmentDto createShipment(OrderShipmentDto shipmentDto) {
+    // ───────────────────────────────────────────────
+    //  BASE CONFIGURATION
+    // ───────────────────────────────────────────────
+
+    @Override
+    protected String getCacheName() {
+        return "shipments";
+    }
+
+    @Override
+    protected Class<?> getEntityClass() {
+        return OrderShipment.class;
+    }
+
+    // ───────────────────────────────────────────────
+    //  READ METHODS
+    // ───────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "shipments", key = "'id:' + #shipmentId")
+    public OrderShipmentDto getShipmentById(Long shipmentId) {
+        return findById(shipmentId)
+                .map(this::mapToDto)
+                .orElseThrow(() -> new ResourceNotFoundException("Shipment not found with ID: " + shipmentId));
+    }
+
+//    @Transactional(readOnly = true)
+//    @Cacheable(cacheNames = "shipments", key = "'order:' + #orderId")
+//    public OrderShipmentDto getShipmentByOrderId(Long orderId) {
+//        return shipmentRepository.findByOrderId(orderId).getOrder()
+//                .map(this::mapToDto)
+//                .orElseThrow(() -> new ResourceNotFoundException("Shipment not found for order ID: " + orderId));
+//    }
+
+    // ───────────────────────────────────────────────
+    //  BUSINESS OPERATIONS
+    // ───────────────────────────────────────────────
+
+    @Transactional
+    public OrderShipmentDto createShipment(OrderShipmentDto dto) {
         try {
-            // Validate and populate missing attributes
-            validateAndFillShipmentDetails(shipmentDto);
-
-            // Convert DTO to Entity
-            OrderShipment shipment = toEntity(shipmentDto);
-
-            // Save Entity
-            shipment = shipmentRepository.save(shipment);
-
-            // Convert Entity back to DTO
-            return toDto(shipment);
-        } catch (DataIntegrityViolationException ex) {
-            throw new CustomBadRequestException("Invalid data: " + ex.getMessage());
-        } catch (Exception ex) {
-            throw new CustomInternalServerErrorException("An unexpected error occurred.");
+            validateAndFillShipmentDetails(dto);
+            OrderShipment shipment = mapToEntity(dto);
+            shipment = save(shipment);
+            log.info("Shipment created for order {}", dto.getOrderId());
+            return mapToDto(shipment);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomBadRequestException("Invalid shipment data: " + e.getMessage());
         }
     }
 
-    // Update an existing shipment
-    public OrderShipmentDto updateShipment(Long shipmentId, OrderShipmentDto shipmentDto) {
-        try {
-            // Retrieve the existing shipment
-            OrderShipment existingShipment = shipmentRepository.findById(shipmentId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Shipment not found with ID: " + shipmentId));
-
-            // Validate and populate missing attributes
-            validateAndFillShipmentDetails(shipmentDto);
-
-            // Update the entity from DTO
-            updateEntityFromDto(shipmentDto, existingShipment);
-
-            // Save the updated shipment
-            OrderShipment updatedShipment = shipmentRepository.save(existingShipment);
-
-            // Return the updated DTO
-            return toDto(updatedShipment);
-        } catch (Exception ex) {
-            throw new CustomInternalServerErrorException("An error occurred while updating the shipment: " + ex.getMessage());
-        }
+    @Transactional
+    public OrderShipmentDto updateShipment(Long shipmentId, OrderShipmentDto dto) {
+        OrderShipment existing = findByIdOrThrow(shipmentId);
+        validateAndFillShipmentDetails(dto);
+        updateEntityFromDto(dto, existing);
+        OrderShipment updated = save(existing);
+        log.info("Shipment {} updated successfully", shipmentId);
+        return mapToDto(updated);
     }
 
-    // Retrieve a shipment by ID
-    public OrderShipmentDto getShipmentById(Long id) {
-        return shipmentRepository.findById(id)
-                .map(this::toDto)
-                .orElseThrow(() -> new ResourceNotFoundException("Shipment not found with ID: " + id));
+    @Transactional
+    public void deleteShipment(Long shipmentId) {
+        if (!shipmentRepository.existsById(shipmentId)) {
+            throw new ResourceNotFoundException("Shipment not found with ID: " + shipmentId);
+        }
+        repository.deleteById(shipmentId);
+        log.info("Shipment {} deleted", shipmentId);
     }
 
-    // Retrieve shipments by order ID
-    public OrderShipmentDto getShipmentsByOrderId(Long orderId) {
-        return this.toDto(shipmentRepository.findByOrderId(orderId));
-    }
+    // ───────────────────────────────────────────────
+    //  HELPER METHODS
+    // ───────────────────────────────────────────────
 
-    // Delete a shipment by ID
-    public void deleteShipment(Long id) {
-        if (!shipmentRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Shipment not found with ID: " + id);
+    private void validateAndFillShipmentDetails(OrderShipmentDto dto) {
+        if (dto.getShipmentStatus() == null) {
+            dto.setShipmentStatus(ShipmentStatus.PENDING.name());
         }
-        shipmentRepository.deleteById(id);
-    }
-
-    // Check if a shipment exists by ID
-    public boolean existsById(Long id) {
-        return shipmentRepository.existsById(id);
-    }
-
-    // Private helper to validate and fill missing attributes in the DTO
-    private void validateAndFillShipmentDetails(OrderShipmentDto shipmentDto) {
-        if (shipmentDto.getShipmentStatus() == null) {
-            shipmentDto.setShipmentStatus("Pending"); // Default status
+        if (dto.getEstimatedDeliveryDate() == null) {
+            dto.setEstimatedDeliveryDate(LocalDate.now().plusDays(7));
         }
-
-        if (shipmentDto.getEstimatedDeliveryDate() == null) {
-            shipmentDto.setEstimatedDeliveryDate(LocalDate.now().plusDays(7)); // Default 7 days from now
+        if (dto.getDeliveryDuration() == null) {
+            dto.setDeliveryDuration(7);
         }
-
-        if (shipmentDto.getDeliveryDuration() == null) {
-            shipmentDto.setDeliveryDuration(7); // Default delivery duration
-        }
-
-        if (shipmentDto.getCourierName() == null || shipmentDto.getTrackingNumber() == null) {
+        if (dto.getCourierName() == null || dto.getTrackingNumber() == null) {
             throw new CustomBadRequestException("Courier name and tracking number are required.");
         }
     }
 
-    public OrderShipmentDto toDto(OrderShipment orderShipment) {
-        if (orderShipment == null) {
-            return null;
-        }
+    private OrderShipmentDto mapToDto(OrderShipment entity) {
+        if (entity == null) return null;
 
         OrderShipmentDto dto = new OrderShipmentDto();
-        dto.setShipmentId(orderShipment.getShipmentId());
-        dto.setOrderId(orderShipment.getOrder().getId());
-        dto.setCourierName(orderShipment.getCourierName());
-        dto.setTrackingNumber(orderShipment.getTrackingNumber());
-        dto.setOrigin(orderShipment.getOrigin());
-        dto.setDestination(orderShipment.getDestination());
-        dto.setShipmentStatus(orderShipment.getShipmentStatus().name());
-        dto.setEstimatedDeliveryDate(orderShipment.getEstimatedDeliveryDate());
-        dto.setDeliveryDuration(orderShipment.getDeliveryDuration());
-        dto.setShipmentCost(orderShipment.getOrder().getShippingCost());
-
+        dto.setShipmentId(entity.getShipmentId());
+        dto.setOrderId(entity.getOrder().getId());
+        dto.setCourierName(entity.getCourierName());
+        dto.setTrackingNumber(entity.getTrackingNumber());
+        dto.setOrigin(entity.getOrigin());
+        dto.setDestination(entity.getDestination());
+        dto.setShipmentStatus(entity.getShipmentStatus().name());
+        dto.setEstimatedDeliveryDate(entity.getEstimatedDeliveryDate());
+        dto.setDeliveryDuration(entity.getDeliveryDuration());
+        dto.setShipmentCost(entity.getOrder().getShippingCost());
         return dto;
     }
 
-    public OrderShipment toEntity(OrderShipmentDto orderShipmentDto) {
-        if (orderShipmentDto == null) {
-            return null;
-        }
+    private OrderShipment mapToEntity(OrderShipmentDto dto) {
+        if (dto == null) return null;
 
         OrderShipment entity = new OrderShipment();
-        entity.setShipmentId(orderShipmentDto.getShipmentId());
-        // Assuming Order is fetched separately and set to the entity
-        entity.setCourierName(orderShipmentDto.getCourierName());
-        entity.setTrackingNumber(orderShipmentDto.getTrackingNumber());
-        entity.setOrigin(orderShipmentDto.getOrigin());
-        entity.setDestination(orderShipmentDto.getDestination());
-        entity.setShipmentStatus(ShipmentStatus.valueOf(orderShipmentDto.getShipmentStatus()));
-        entity.setEstimatedDeliveryDate(orderShipmentDto.getEstimatedDeliveryDate());
-        entity.setDeliveryDuration(orderShipmentDto.getDeliveryDuration());
-
+        entity.setShipmentId(dto.getShipmentId());
+        entity.setCourierName(dto.getCourierName());
+        entity.setTrackingNumber(dto.getTrackingNumber());
+        entity.setOrigin(dto.getOrigin());
+        entity.setDestination(dto.getDestination());
+        entity.setShipmentStatus(ShipmentStatus.valueOf(dto.getShipmentStatus()));
+        entity.setEstimatedDeliveryDate(dto.getEstimatedDeliveryDate());
+        entity.setDeliveryDuration(dto.getDeliveryDuration());
         return entity;
     }
 
+    private void updateEntityFromDto(OrderShipmentDto dto, OrderShipment entity) {
+        if (dto == null || entity == null) return;
 
-    void updateEntityFromDto(OrderShipmentDto dto, OrderShipment entity) {
-        if (dto == null || entity == null) {
-            return;
-        }
-
-        if (dto.getCourierName() != null) {
-            entity.setCourierName(dto.getCourierName());
-        }
-        if (dto.getTrackingNumber() != null) {
-            entity.setTrackingNumber(dto.getTrackingNumber());
-        }
-        if (dto.getOrigin() != null) {
-            entity.setOrigin(dto.getOrigin());
-        }
-        if (dto.getDestination() != null) {
-            entity.setDestination(dto.getDestination());
-        }
-        if (dto.getShipmentStatus() != null) {
+        if (dto.getCourierName() != null) entity.setCourierName(dto.getCourierName());
+        if (dto.getTrackingNumber() != null) entity.setTrackingNumber(dto.getTrackingNumber());
+        if (dto.getOrigin() != null) entity.setOrigin(dto.getOrigin());
+        if (dto.getDestination() != null) entity.setDestination(dto.getDestination());
+        if (dto.getShipmentStatus() != null)
             entity.setShipmentStatus(ShipmentStatus.valueOf(dto.getShipmentStatus()));
-        }
-        if (dto.getEstimatedDeliveryDate() != null) {
+        if (dto.getEstimatedDeliveryDate() != null)
             entity.setEstimatedDeliveryDate(dto.getEstimatedDeliveryDate());
-        }
-        if (dto.getDeliveryDuration() != null) {
+        if (dto.getDeliveryDuration() != null)
             entity.setDeliveryDuration(dto.getDeliveryDuration());
-        }
     }
 
+    // ───────────────────────────────────────────────
+    //  LIFECYCLE HOOKS
+    // ───────────────────────────────────────────────
+
+    @Override
+    protected void onAfterSave(OrderShipment entity) {
+        log.debug("Shipment {} saved with status {}", entity.getShipmentId(), entity.getShipmentStatus());
+    }
+
+    @Override
+    protected void onAfterDelete(Long id) {
+        log.debug("Shipment {} deleted from repository", id);
+    }
 }
 
 

@@ -38,4 +38,10 @@ public class Inventory {
     private LocalDateTime lastRestocked;
 
 
+    public Inventory(Product product, int quantity, int reservedQuantity, LocalDateTime now) {
+        this.product = product;
+        this.quantityInStock = quantity;
+        this.reservedQuantity = reservedQuantity;
+        this.reorderThreshold = quantity * reservedQuantity;
+    }
 }
