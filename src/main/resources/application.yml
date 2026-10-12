@@ -1,11 +1,114 @@
 spring:
-  profiles:
-    active: dev
-  servlet:
-    multipart:
-      max-file-size: 50MB
+  application:
+    name: enterprise-demo-app
+
+  main:
+    web-application-type: servlet
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+  web: 
+    resources:
+      add-mappings: false
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        show_sql: false
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+          fetch_size: 50
+          time_zone: UTC
+        order_inserts: true
+        order_updates: true
+        query:
+          in_clause_parameter_padding: true
+          fail_on_pagination_over_collection_fetch: true
+          plan_cache_max_size: 2048
+        connection:
+          provider_disables_autocommit: true
+        cache:
+          use_second_level_cache: false
+          use_query_cache: false
+        generate_statistics: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: false
+
+# ============================================
+# SpringDoc — CRITICAL FIX
+# ============================================
 springdoc:
+  # This tells SpringDoc NOT to claim /actuator/** endpoints
+  # as its own and not to interfere with the actuator handler mapping.
+  show-actuator: false
+
+  # This prevents SpringDoc from registering its own /** resource
+  # handler that overrides WebMvcEndpointHandlerMapping ordering.
+  use-management-port: false
+
+  # Disable the default /** catch-all that SpringDoc adds
+  # which steals /actuator/prometheus before the actuator handler runs.
+  swagger-ui:
+    disable-swagger-default-url: true
+    path: /swagger-ui/index.html
+
+  api-docs:
+    path: /v3/api-docs
+
+  # !! KEY FIX !!
+  # SpringDoc by default registers a resource handler for /**
+  # which gets ordered BEFORE WebMvcEndpointHandlerMapping.
+  # Setting this to true makes SpringDoc use the existing
+  # resource handler instead of registering a competing one.
   default-produces-media-type: application/json
-server:
-  servlet:
-    context-path: /api/v1/
+
+# ============================================
+# Actuator Configuration
+# ============================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - info
+          - prometheus
+          - metrics
+          - loggers
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+    loggers:
+      enabled: true
+  health:
+    db:
+      enabled: false
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true

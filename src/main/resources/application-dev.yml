@@ -1,41 +1,266 @@
+# ============================================
+# Development Environment Configuration
+# ============================================
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/hlinedb
-    username: admin
-    password: admin@*123
-    driver-class-name: org.postgresql.Driver
+    master:
+      url: jdbc:postgresql://localhost:5432/hline_db
+      username: admin
+      password: admin123
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        pool-name: HikariPool-Master-Dev
+        maximum-pool-size: 10
+        minimum-idle: 2
+        connection-timeout: 30000
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        auto-commit: false
+        connection-test-query: SELECT 1
+        leak-detection-threshold: 60000
+
+    slave:
+      url: jdbc:postgresql://localhost:5432/hline_db_replica
+      username: admin
+      password: admin123
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        pool-name: HikariPool-Slave-Dev
+        maximum-pool-size: 10
+        minimum-idle: 2
+        # read-only: true
+        connection-timeout: 30000
+        idle-timeout: 600000
+        max-lifetime: 1800000
+
   jpa:
-    database: postgresql
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     show-sql: true
+    open-in-view: false
     properties:
       hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        use_sql_comments: true
+        generate_statistics: true
+        jdbc:
+          batch_size: 20
+          time_zone: UTC
+        order_inserts: true
+        order_updates: true
+        physical_naming_strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 2000
+    database: 0
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 2
+        max-wait: 1000
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+      cache-null-values: false
 
   mail:
     host: localhost
     port: 1025
-    username: admin
-    password: admin
+    username:
+    password:
     properties:
       mail:
         smtp:
-          trust: "*"
-        auth: true
-        starttls:
-          enabled: true
-        connectiontimeout: 5000
-        timeout: 3000
-        writetimeout: 5000
-  security:
-    mailing:
-      frontend:
-        activation-url: http://localhost:4200/activate-account
-application:
-  file:
-    uploads:
-      photos-output-path: ./uploads
+          auth: false
+          starttls:
+            enable: false
+            required: false
+        debug: true
+    protocol: smtp
+    test-connection: false
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      batch-size: 16384
+      buffer-memory: 33554432
+      compression-type: lz4
+      properties:
+        linger.ms: 10
+        max.in.flight.requests.per.connection: 5
+        enable.idempotence: true
+    consumer:
+      group-id: hline-consumer-group-dev
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      max-poll-records: 500
+      concurrency: 3
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.example.demo.*
+        spring.json.use.type.info.headers: false
+        session.timeout.ms: 30000
+        heartbeat.interval.ms: 10000
+    listener:
+      ack-mode: manual
+      concurrency: 3
+      poll-timeout: 3000
+    admin:
+      properties:
+        bootstrap.servers: localhost:9092
+    template:
+      default-topic: user-events
+
+  flyway:
+    enabled: false
+
+  tracing:
+    enabled: false
+    sampling:
+      probability: 0.0
+
+# ============================================
+# JWT Configuration
+# ============================================
+jwt:
+  secret-key: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration: 86400000
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  access-token-expiration: 86400000
+  refresh-token:
+    expiration: 604800000
+
+# ============================================
+# Email Configuration
+# ============================================
+email:
+  from: noreply@hline.com
+  from-name: HLine Application
+  enabled: true
+
+# ============================================
+# Actuator Configuration
+# ============================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+    kafka:
+      enabled: true
+    mail:
+      enabled: true
+  tracing:
+    enabled: false
+    sampling:
+      probability: 0.0
+  metrics:
+    export:
+      simple:
+        enabled: true
+
+# ============================================
+# Server Configuration
+# ============================================
 server:
-  port: 8088
+  port: 8080
+  tomcat:
+    relaxed-query-chars: '[,]'
+  servlet:
+    context-path: /
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+
+# ============================================
+# Logging Configuration
+# ============================================
+logging:
+  level:
+    root: INFO
+    com.example.demo: DEBUG
+    com.example.demo.config.database: DEBUG
+    com.example.demo.config.cache: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.security.web: TRACE
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.zaxxer.hikari: DEBUG
+    org.flywaydb: INFO
+    io.lettuce.core: INFO
+    org.springframework.data.redis: DEBUG
+    org.springframework.kafka: DEBUG
+    org.apache.kafka: INFO
+    org.springframework.mail: DEBUG
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n'
+
+# ============================================
+# Custom Kafka Topics
+# ============================================
+kafka:
+  topics:
+    user-events: user-events
+    order-events: order-events
+    payment-events: payment-events
+    notification-events: notification-events
+    dlq-events: dlq-events
+    db-sync: db-sync-events   
+  partitions: 3
+  replication-factor: 1
+
+# ============================================
+# Performance Monitoring
+# ============================================
+performance:
+  monitoring:
+    enabled: true
+  slow:
+    threshold:
+      ms: 1000
+  critical:
+    threshold:
+      ms: 5000
+
+# ============================================
+# SpringDoc / Swagger
+# ============================================
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    try-it-out-enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    doc-expansion: none
+  packages-to-scan: com.example.demo
+  show-actuator: false
+  use-management-port: false
+  default-produces-media-type: application/json

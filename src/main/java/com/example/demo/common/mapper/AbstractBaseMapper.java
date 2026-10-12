@@ -1,53 +1,101 @@
 package com.example.demo.common.mapper;
 
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 
 /**
- * Abstract base class for entity <-> DTO mapping.
- * Provides default list mapping methods and structure for specific mappers.
+ * Abstract base implementation of BaseMapper
+ * Provides template for mappers that need to extend rather than implement
+ *
+ * Use this when you need:
+ * - Shared state across mapper methods
+ * - Common initialization logic
+ * - Helper methods not in the interface
+ *
+ * @param <E> Entity type
+ * @param <D> DTO type
+ *
+ * @author Architecture Team
+ * @version 1.0
  */
-public abstract class AbstractBaseMapper<E, D> {
+public abstract class AbstractBaseMapper<E, D> implements BaseMapper<E, D> {
 
     /**
-     * Convert a single entity to its corresponding DTO.
+     * Optional: Add reference to other mappers for complex mapping scenarios
+     * Example: private final AddressMapper addressMapper;
      */
-    public abstract D toDto(E entity);
 
     /**
-     * Convert a DTO to its corresponding entity.
+     * Template method for custom entity validation before mapping
+     * Override in subclasses if validation needed
+     *
+     * @param entity the entity to validate
+     * @throws IllegalArgumentException if validation fails
      */
-    public abstract E toEntity(D dto);
-
-    /**
-     * Convert a list of entities to a list of DTOs.
-     */
-    public List<D> toDtoList(List<E> entities) {
-        if (entities == null) return List.of();
-        return entities.stream()
-                .filter(Objects::nonNull)
-                .map(this::toDto)
-                .collect(Collectors.toList());
+    protected void validateEntity(@Nullable E entity) {
+        // Default: no validation
+        // Subclasses can override
     }
 
     /**
-     * Convert a list of DTOs to a list of entities.
+     * Template method for custom DTO validation before mapping
+     * Override in subclasses if validation needed
+     *
+     * @param dto the DTO to validate
+     * @throws IllegalArgumentException if validation fails
      */
-    public List<E> toEntityList(List<D> dtos) {
-        if (dtos == null) return List.of();
-        return dtos.stream()
-                .filter(Objects::nonNull)
-                .map(this::toEntity)
-                .collect(Collectors.toList());
+    protected void validateDto(@Nullable D dto) {
+        // Default: no validation
+        // Subclasses can override
     }
 
     /**
-     * Optionally override this in child mappers
-     * for custom partial updates.
+     * Hook method called after entity to DTO mapping
+     * Useful for post-processing or audit logging
+     *
+     * @param entity the source entity
+     * @param dto the resulting DTO
      */
-    public void updateEntityFromDto(D dto, E entity) {
-        // Default: do nothing
-        // Subclasses can override if needed.
+    protected void afterToDto(@Nullable E entity, @Nullable D dto) {
+        // Default: no-op
+        // Subclasses can override for logging, etc.
+    }
+
+    /**
+     * Hook method called after DTO to entity mapping
+     * Useful for setting default values or computed fields
+     *
+     * @param dto the source DTO
+     * @param entity the resulting entity
+     */
+    protected void afterToEntity(@Nullable D dto, @Nullable E entity) {
+        // Default: no-op
+        // Subclasses can override
+    }
+
+    /**
+     * Helper method to check if entity has ID (is persisted)
+     * Override based on your ID strategy
+     *
+     * @param entity the entity to check
+     * @return true if entity appears to be persisted
+     */
+    protected boolean isPersisted(@Nullable E entity) {
+        // Default implementation - override in subclasses
+        return entity != null;
+    }
+
+    /**
+     * Helper method for null-safe string mapping
+     */
+    protected String mapString(@Nullable String value) {
+        return value != null ? value.trim() : null;
+    }
+
+    /**
+     * Helper method for null-safe string mapping with default
+     */
+    protected String mapStringWithDefault(@Nullable String value, @NonNull String defaultValue) {
+        return value != null && !value.trim().isEmpty() ? value.trim() : defaultValue;
     }
 }

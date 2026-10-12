@@ -1,0 +1,23 @@
+package com.example.demo.modules.kitchen.domain.event;
+
+import com.example.demo.common.event.DomainEvent;
+import lombok.*;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class KitchenCollectionDeactivatedEvent implements DomainEvent {
+    private static final long serialVersionUID = 1L;
+    @Builder.Default
+    private String eventId = UUID.randomUUID().toString();
+    private UUID collectionId;
+    private String collectionName;
+    private String reason;
+    @Builder.Default
+    private LocalDateTime occurredAt = LocalDateTime.now();
+
+    @Override public String getEventType() { return "kitchen.collection.deactivated"; }
+}

@@ -1,0 +1,102 @@
+# ============================================
+# Production Environment Configuration
+# ============================================
+spring:
+  # ============================================
+  # Master Database (Write Operations)
+  # ============================================
+  datasource:
+    master:
+      jdbc-url: ${DB_MASTER_URL:jdbc:postgresql://prod-master-db:5432/demo_db}
+      username: ${DB_MASTER_USERNAME}
+      password: ${DB_MASTER_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        pool-name: HikariPool-Master-Prod
+        maximum-pool-size: 30
+        minimum-idle: 10
+        connection-timeout: 30000
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        auto-commit: false
+        connection-test-query: SELECT 1
+        leak-detection-threshold: 0 # Disabled in production
+        validation-timeout: 5000
+        initialization-fail-timeout: -1
+
+    # ============================================
+    # Slave Database (Read Operations)
+    # ============================================
+    slave:
+      jdbc-url: ${DB_SLAVE_URL:jdbc:postgresql://prod-slave-db:5432/demo_db}
+      username: ${DB_SLAVE_USERNAME}
+      password: ${DB_SLAVE_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+      hikari:
+        pool-name: HikariPool-Slave-Prod
+        maximum-pool-size: 50 # More connections for read-heavy workload
+        minimum-idle: 15
+        read-only: true
+        connection-timeout: 30000
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        connection-test-query: SELECT 1
+        validation-timeout: 5000
+
+  # ============================================
+  # JPA Production Settings
+  # ============================================
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        generate_statistics: false
+        jdbc:
+          batch_size: 50
+          fetch_size: 100
+        query:
+          plan_cache_max_size: 4096
+
+  # ============================================
+  # Flyway Production Settings
+  # ============================================
+  flyway:
+    enabled: true
+    clean-disabled: true # Never clean in production
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    out-of-order: false
+
+# ============================================
+# Production Hikari Settings
+# ============================================
+app:
+  datasource:
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 0
+
+# ============================================
+# Logging Configuration
+# ============================================
+logging:
+  level:
+    root: WARN
+    com.example.demo: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    com.zaxxer.hikari: INFO
+    org.flywaydb: INFO
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n'
+  file:
+    name: /var/log/demo-app/application.log
+    max-size: 10MB
+    max-history: 30

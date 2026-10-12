@@ -1,0 +1,210 @@
+groups:
+
+  # ============================================
+  # Application Alerts
+  # ============================================
+  - name: application
+    rules:
+
+      - alert: AppDown
+        expr: up{job="spring-boot-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Spring Boot application is DOWN"
+          description: "{{ $labels.instance }} has been down for more than 1 minute"
+
+      - alert: HighErrorRate
+        expr: >
+          sum(rate(http_server_requests_seconds_count{
+            application="demo",
+            status=~"5.."}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx error rate above 0.1 req/s"
+
+      - alert: HighHeapMemory
+        expr: >
+          jvm_memory_used_bytes{application="demo", area="heap"}
+          / jvm_memory_max_bytes{application="demo", area="heap"}
+          > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM heap usage above 85%"
+
+      - alert: HighResponseTime
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket{
+              application="demo"}[5m]))
+            by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "95th percentile response time above 2 seconds"
+
+  # ============================================
+  # Database Alerts
+  # ============================================
+  - name: database
+    rules:
+
+      - alert: PostgreSQLDown
+        expr: up{job="postgresql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is DOWN"
+
+      - alert: DBConnectionPoolExhausted
+        expr: >
+          hikaricp_connections_active{application="demo"}
+          / hikaricp_connections_max{application="demo"}
+          > 0.8
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB connection pool above 80% — {{ $labels.pool }}"
+
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL active connections above 80"
+
+      - alert: PostgreSQLLowCacheHitRatio
+        expr: >
+          pg_stat_database_blks_hit{datname="hline_db"}
+          / (pg_stat_database_blks_hit{datname="hline_db"}
+             + pg_stat_database_blks_read{datname="hline_db"})
+          < 0.95
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL cache hit ratio below 95%"
+
+  # ============================================
+  # Redis Alerts
+  # ============================================
+  - name: redis
+    rules:
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is DOWN"
+
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes > 1073741824
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage above 1GB"
+
+      - alert: RedisHighKeyEviction
+        expr: rate(redis_evicted_keys_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis evicting more than 10 keys/sec"
+
+      - alert: RedisLowHitRate
+        expr: >
+          redis_keyspace_hits_total
+          / (redis_keyspace_hits_total + redis_keyspace_misses_total)
+          < 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis hit rate below 80%"
+
+  # ============================================
+  # Kafka Alerts
+  # ============================================
+  - name: kafka
+    rules:
+
+      - alert: KafkaDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka exporter is DOWN"
+
+      - alert: KafkaConsumerLag
+        expr: >
+          sum(kafka_consumergroup_lag{
+            group="replica-sync-group"}) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag above 1000 records"
+
+      - alert: KafkaConsumerLagCritical
+        expr: >
+          sum(kafka_consumergroup_lag{
+            group="replica-sync-group"}) > 10000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka consumer lag above 10000 records"
+
+      - alert: KafkaNoActiveConsumers
+        expr: >
+          kafka_consumergroup_members{
+            group="replica-sync-group"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No active consumers in replica-sync-group"
+
+  # ============================================
+  # Cache Alerts
+  # ============================================
+  - name: cache
+    rules:
+
+      - alert: LowCacheHitRate
+        expr: >
+          rate(cache_gets_total{
+            application="demo",
+            result="hit"}[5m])
+          / rate(cache_gets_total{
+            application="demo"}[5m])
+          < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cache hit rate below 50% — {{ $labels.cache }}"
+
+      - alert: HighCacheEviction
+        expr: >
+          rate(cache_evictions_total{
+            application="demo"}[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cache eviction rate above 100/sec — {{ $labels.cache }}"
